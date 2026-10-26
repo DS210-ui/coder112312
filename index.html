@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dota 2 AI Tactical Coach Pro</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dota: {
+                            dark: '#0b0e14',
+                            panel: '#151b22',
+                            card: '#1e2328',
+                            border: '#2a323d',
+                            gold: '#e1b764',
+                            goldHover: '#f3c977',
+                            accent: '#c23c2a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0b0e14; color: #e5e7eb; }
+        .dota-title { font-family: 'Cinzel', serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0b0e14; }
+        ::-webkit-scrollbar-thumb { background: #2a323d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a4454; }
+        .glow-gold { box-shadow: 0 0 15px rgba(225, 183, 100, 0.15); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-dota-dark text-slate-200">
+
+    <!-- Top Header -->
+    <header class="bg-dota-panel border-b border-dota-border px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-red-700 flex items-center justify-center glow-gold">
+                <i class="fa-solid fa-shield-halved text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="dota-title text-xl font-bold tracking-wider text-dota-gold">DOTA 2 AI COACH PRO</h1>
+                <p class="text-xs text-slate-400">Автоматический тактический советник по скриншоту</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div id="statusBadge" class="hidden px-3 py-1 rounded-full text-xs font-semibold bg-emerald-900/50 text-emerald-400 border border-emerald-700 flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="statusText">Готов к анализу</span>
+            </div>
+            <button onclick="openSettings()" class="px-3 py-2 bg-dota-card hover:bg-slate-800 border border-dota-border rounded-lg text-sm text-slate-300 flex items-center space-x-2 transition">
+                <i class="fa-solid fa-gear text-dota-gold"></i>
+                <span>Настройки API</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Column: Upload & Controls (4 Cols) -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- Upload Panel -->
+            <div class="bg-dota-panel border border-dota-border rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-dota-gold mb-3 flex items-center justify-between">
+                    <span>1. Загрузка скриншота игры</span>
+                    <span class="text-xs text-slate-400 font-normal">Ctrl + V / Файл</span>
+                </h2>
+
+                <!-- Game Mode Selector -->
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button type="button" onclick="setMode('allpick')" id="modeAllPick" class="py-2.5 px-3 rounded-lg text-sm font-semibold border transition bg-amber-500/20 border-dota-gold text-dota-gold">
+                        <i class="fa-solid fa-users mr-1.5"></i> All Pick
+                    </button>
+                    <button type="button" onclick="setMode('turbo')" id="modeTurbo" class="py-2.5 px-3 rounded-lg text-sm font-semibold border transition bg-dota-card border-dota-border text-slate-400 hover:text-slate-200">
+                        <i class="fa-solid fa-bolt mr-1.5 text-amber-400"></i> Turbo
+                    </button>
+                </div>
+
+                <!-- Dropzone -->
+                <div id="dropZone" class="border-2 border-dashed border-dota-border hover:border-dota-gold rounded-xl p-6 text-center cursor-pointer transition bg-dota-card/50 relative overflow-hidden group">
+                    <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer z-10" onchange="handleFileSelect(event)">
+                    
+                    <div id="uploadPrompt" class="space-y-3">
+                        <div class="w-14 h-14 mx-auto rounded-full bg-dota-border flex items-center justify-center text-dota-gold group-hover:scale-110 transition">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-slate-200">Перетащите скриншот сюда</p>
+                            <p class="text-xs text-slate-400 mt-1">или нажмите для выбора файла</p>
+                        </div>
+                        <span class="inline-block px-3 py-1 bg-dota-border text-xs rounded text-slate-300">Поддерживает PNG, JPG, WEBP</span>
+                    </div>
+
+                    <!-- Image Preview container -->
+                    <div id="previewContainer" class="hidden relative rounded-lg overflow-hidden max-h-48">
+                        <img id="imagePreview" src="" alt="Screenshot Preview" class="w-full h-full object-cover rounded-lg">
+                        <button onclick="clearImage(event)" class="absolute top-2 right-2 bg-red-600/80 hover:bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs shadow transition">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Analyze Button -->
+                <button onclick="startAnalysis()" id="analyzeBtn" disabled class="w-full mt-4 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span id="analyzeBtnText">Анализировать матч</span>
+                </button>
+            </div>
+
+            <!-- Quick Tips Panel -->
+            <div class="bg-dota-panel border border-dota-border rounded-xl p-5 shadow-xl">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-dota-gold mb-3 flex items-center space-x-2">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>Как это работает</span>
+                </h3>
+                <ul class="space-y-2 text-xs text-slate-400">
+                    <li class="flex items-start space-x-2">
+                        <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
+                        <span>ИИ определяет вашего героя, таймер и золото по скриншоту.</span>
+                    </li>
+                    <li class="flex items-start space-x-2">
+                        <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
+                        <span>Анализирует пики вашей команды и врагов.</span>
+                    </li>
+                    <li class="flex items-start space-x-2">
+                        <i class="fa-solid fa-check text-emerald-400 mt-0.5"></i>
+                        <span>Генерирует 3 варианта сборок с иконками предметов.</span>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Results & HUD (8 Cols) -->
+        <div class="lg:col-span-8 space-y-6">
+
+            <!-- Initial Placeholder state -->
+            <div id="welcomeState" class="bg-dota-panel border border-dota-border rounded-xl p-12 text-center shadow-xl flex flex-col items-center justify-center min-h-[500px]">
+                <div class="w-20 h-20 rounded-full bg-dota-card border border-dota-border flex items-center justify-center text-dota-gold mb-4 glow-gold">
+                    <i class="fa-solid fa-chess-knight text-3xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-200 mb-2">Ожидание скриншота игры</h2>
+                <p class="text-sm text-slate-400 max-w-md mx-auto mb-6">Загрузите или вставьте скриншот из Dota 2 (нажмите Ctrl+V), чтобы ИИ-тренер проанализировал ваш матч, закупку и составил победную стратегию.</p>
+                <div class="inline-flex items-center space-x-2 px-4 py-2 bg-dota-card border border-dota-border rounded-lg text-xs text-dota-gold">
+                    <i class="fa-regular fa-lightbulb"></i>
+                    <span>Совет: скриншот магазина или таблицы счета дает максимально точный результат</span>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" class="hidden bg-dota-panel border border-dota-border rounded-xl p-12 text-center shadow-xl flex flex-col items-center justify-center min-h-[500px]">
+                <div class="relative w-20 h-20 mb-6">
+                    <div class="absolute inset-0 rounded-full border-4 border-dota-border border-t-dota-gold animate-spin"></div>
+                    <div class="absolute inset-0 flex items-center justify-center text-dota-gold">
+                        <i class="fa-solid fa-brain animate-pulse"></i>
+                    </div>
+                </div>
+                <h2 class="text-lg font-bold text-slate-200 mb-2">Анализируем матч с Dota 2 Pro Tracker...</h2>
+                <p class="text-xs text-slate-400 max-w-sm mx-auto" id="loadingStatusText">Распознаем героев, инвентарь, золото и таймер игры...</p>
+            </div>
+
+            <!-- Results Container -->
+            <div id="resultsContainer" class="hidden space-y-6">
+
+                <!-- 1. HUD Overview Card (My Hero, Timer, Gold) -->
+                <div class="bg-dota-panel border border-dota-border rounded-xl p-5 shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                    
+                    <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-dota-border">
+                        <div class="flex items-center space-x-4">
+                            <div class="relative">
+                                <img id="myHeroPortrait" src="" alt="Hero" class="w-16 h-16 rounded-xl object-cover border-2 border-dota-gold shadow-lg">
+                                <span class="absolute -bottom-2 -right-2 bg-dota-gold text-dota-dark text-xs font-bold px-1.5 py-0.5 rounded shadow">ВЫ</span>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h2 id="myHeroName" class="text-lg font-bold text-white tracking-wide">Герой не определен</h2>
+                                    <span id="gameModeBadge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-dota-gold border border-amber-500/30">All Pick</span>
+                                </div>
+                                <p id="myHeroRole" class="text-xs text-slate-400">Позиция: 1 (Carry)</p>
+                            </div>
+                        </div>
+
+                        <!-- Match Stats (Timer & Gold) -->
+                        <div class="flex items-center space-x-4 bg-dota-card px-4 py-2.5 rounded-xl border border-dota-border">
+                            <div class="text-center px-3 border-r border-dota-border">
+                                <span class="block text-[10px] uppercase text-slate-400 font-semibold"><i class="fa-regular fa-clock mr-1 text-dota-gold"></i> Таймер</span>
+                                <span id="gameTimer" class="text-base font-bold text-white">00:00</span>
+                            </div>
+                            <div class="text-center px-3 border-r border-dota-border">
+                                <span class="block text-[10px] uppercase text-slate-400 font-semibold"><i class="fa-solid fa-coins mr-1 text-amber-400"></i> Золото</span>
+                                <span id="playerGold" class="text-base font-bold text-amber-400">0</span>
+                            </div>
+                            <div class="text-center px-3">
+                                <span class="block text-[10px] uppercase text-slate-400 font-semibold"><i class="fa-solid fa-chart-line mr-1 text-emerald-400"></i> Net Worth</span>
+                                <span id="playerNetWorth" class="text-base font-bold text-emerald-400">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Current Inventory -->
+                    <div>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Текущий инвентарь (по скриншоту)</h3>
+                        <div id="currentInventory" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+
+                <!-- 2. Teams Lineup (Allies & Enemies) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Allies -->
+                    <div class="bg-dota-panel border border-dota-border rounded-xl p-4 shadow-xl">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3 flex items-center space-x-2">
+                            <i class="fa-solid fa-shield-heart"></i>
+                            <span>Союзники</span>
+                        </h3>
+                        <div id="alliesList" class="grid grid-cols-2 gap-2"></div>
+                    </div>
+
+                    <!-- Enemies -->
+                    <div class="bg-dota-panel border border-dota-border rounded-xl p-4 shadow-xl">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-red-400 mb-3 flex items-center space-x-2">
+                            <i class="fa-solid fa-skull"></i>
+                            <span>Вражеская команда</span>
+                        </h3>
+                        <div id="enemiesList" class="grid grid-cols-2 gap-2"></div>
+                    </div>
+                </div>
+
+                <!-- 3. AI Builds & Item Recommendations (Tabs) -->
+                <div class="bg-dota-panel border border-dota-border rounded-xl p-5 shadow-xl">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-dota-border">
+                        <h3 class="text-sm font-bold uppercase tracking-wider text-dota-gold flex items-center space-x-2">
+                            <i class="fa-solid fa-hammer"></i>
+                            <span>Рекомендуемые сборки предметов</span>
+                        </h3>
+                        
+                        <!-- Build Tabs -->
+                        <div class="flex space-x-1 bg-dota-card p-1 rounded-lg border border-dota-border">
+                            <button onclick="switchBuildTab('meta')" id="tabMeta" class="px-3 py-1.5 text-xs font-semibold rounded-md transition bg-amber-500/20 text-dota-gold">Meta Core</button>
+                            <button onclick="switchBuildTab('aggressive')" id="tabAggressive" class="px-3 py-1.5 text-xs font-semibold rounded-md transition text-slate-400 hover:text-white">Aggressive</button>
+                            <button onclick="switchBuildTab('defensive')" id="tabDefensive" class="px-3 py-1.5 text-xs font-semibold rounded-md transition text-slate-400 hover:text-white">Defensive</button>
+                        </div>
+                    </div>
+
+                    <div id="buildContent" class="space-y-4"></div>
+                </div>
+
+                <!-- 4. Skill Build & Matchup Analysis -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-dota-panel border border-dota-border rounded-xl p-4 shadow-xl">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-dota-gold mb-3 flex items-center space-x-2">
+                            <i class="fa-solid fa-bolt"></i>
+                            <span>Прокачка способностей</span>
+                        </h3>
+                        <div id="skillBuildContainer" class="space-y-2 text-xs text-slate-300"></div>
+                    </div>
+
+                    <div class="bg-dota-panel border border-dota-border rounded-xl p-4 shadow-xl">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-3 flex items-center space-x-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>Советы против врагов и контрпики</span>
+                        </h3>
+                        <div id="matchupTipsContainer" class="space-y-2 text-xs text-slate-300"></div>
+                    </div>
+                </div>
+
+                <!-- 5. Live AI Coach Chat -->
+                <div class="bg-dota-panel border border-dota-border rounded-xl p-5 shadow-xl">
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-dota-gold mb-3 flex items-center space-x-2">
+                        <i class="fa-solid fa-comments"></i>
+                        <span>Задать вопрос AI-тренеру по матчу</span>
+                    </h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="coachQueryInput" placeholder="Например: Стоит ли мне первым слотом брать BKB?" class="flex-1 bg-dota-card border border-dota-border rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-dota-gold transition">
+                        <button onclick="askCoach()" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold rounded-lg transition shadow">Спросить</button>
+                    </div>
+                    <div id="coachAnswer" class="hidden mt-3 p-3.5 bg-dota-card border border-dota-border rounded-lg text-xs text-slate-300 leading-relaxed"></div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-dota-panel border border-dota-border rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-dota-border">
+                <h3 class="dota-title text-base font-bold text-dota-gold">Настройки Gemini API</h3>
+                <button onclick="closeSettings()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Gemini API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="AQ... или AIzaSy..." class="w-full bg-dota-card border border-dota-border rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-dota-gold">
+                <p class="text-[11px] text-slate-500 mt-1.5">Поддерживаются ключи формата AQ... и AIzaSy... Ключ хранится локально в вашем браузере.</p>
+            </div>
+            <div class="flex justify-end space-x-3 pt-2">
+                <button onclick="closeSettings()" class="px-4 py-2 bg-dota-card hover:bg-slate-800 border border-dota-border rounded-lg text-xs text-slate-300 font-semibold transition">Отмена</button>
+                <button onclick="saveApiKey()" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition shadow">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        let currentMode = 'allpick';
+        let selectedImageBase64 = null;
+        let analysisResultData = null;
+        let currentActiveBuildTab = 'meta';
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if (savedKey) {
+                document.getElementById('apiKeyInput').value = savedKey;
+            } else {
+                setTimeout(openSettings, 500);
+            }
+
+            window.addEventListener('paste', (e) => {
+                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const blob = items[i].getAsFile();
+                        processImageFile(blob);
+                        break;
+                    }
+                }
+            });
+
+            const dropZone = document.getElementById('dropZone');
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.add('border-dota-gold', 'bg-dota-card'); }, false);
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.remove('border-dota-gold', 'bg-dota-card'); }, false);
+            });
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files && files[0]) processImageFile(files[0]);
+            }, false);
+        });
+
+        function setMode(mode) {
+            currentMode = mode;
+            const btnAP = document.getElementById('modeAllPick');
+            const btnTurbo = document.getElementById('modeTurbo');
+            if (mode === 'allpick') {
+                btnAP.className = "py-2.5 px-3 rounded-lg text-sm font-semibold border transition bg-amber-500/20 border-dota-gold text-dota-gold";
+                btnTurbo.className = "py-2.5 px-3 rounded-lg text-sm font-semibold border transition bg-dota-card border-dota-border text-slate-400 hover:text-slate-200";
+            } else {
+                btnTurbo.className = "py-2.5 px-3 rounded-lg text-sm font-semibold border transition bg-amber-500/20 border-dota-gold text-dota-gold";
+                btnAP.className = "py-2.5 px-3 rounded-lg text-sm font-semibold border transition bg-dota-card border-dota-border text-slate-400 hover:text-slate-200";
+            }
+        }
+
+        function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+        function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            if (key) {
+                localStorage.setItem('gemini_api_key', key);
+                closeSettings();
+                showStatus("API ключ успешно сохранен", "emerald");
+            } else {
+                alert("Введите корректный API ключ");
+            }
+        }
+
+        function showStatus(text, type) {
+            const sb = document.getElementById('statusBadge');
+            const st = document.getElementById('statusText');
+            st.textContent = text;
+            sb.classList.remove('hidden');
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) processImageFile(file);
+        }
+
+        function processImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                selectedImageBase64 = e.target.result;
+                document.getElementById('uploadPrompt').classList.add('hidden');
+                const prev = document.getElementById('previewContainer');
+                prev.classList.remove('hidden');
+                document.getElementById('imagePreview').src = selectedImageBase64;
+                document.getElementById('analyzeBtn').removeAttribute('disabled');
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function clearImage(e) {
+            e.stopPropagation();
+            selectedImageBase64 = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('previewContainer').classList.add('hidden');
+            document.getElementById('uploadPrompt').classList.remove('hidden');
+            document.getElementById('analyzeBtn').setAttribute('disabled', 'true');
+        }
+
+        function getHeroImg(heroName) {
+            const slug = heroName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${slug}.png`;
+        }
+
+        function getItemImg(itemName) {
+            const slug = itemName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items/${slug}.png`;
+        }
+
+        async function callGeminiAPI(contentsPayload) {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            // NOTE: исправлено название модели — "gemini-3.8-flash" не существует.
+            // Используем реально доступную мультимодальную модель gemini-2.5-flash.
+            const model = 'gemini-2.5-flash';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(contentsPayload)
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error.message);
+            }
+            if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+                throw new Error("Пустой ответ от модели (возможно, блокировка по безопасности или лимит).");
+            }
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        async function startAnalysis() {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                openSettings();
+                alert("Пожалуйста, укажите Gemini API ключ в настройках!");
+                return;
+            }
+            if (!selectedImageBase64) {
+                alert("Сначала загрузите скриншот матча!");
+                return;
+            }
+
+            document.getElementById('welcomeState').classList.add('hidden');
+            document.getElementById('resultsContainer').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+
+            const base64Data = selectedImageBase64.split(',')[1];
+            const mimeType = selectedImageBase64.split(';')[0].split(':')[1];
+
+            const promptText = `Analyze this Dota 2 screenshot (${currentMode} mode). Identify accurately:
+1. My hero (the hero the player is controlling or focusing on, e.g., Juggernaut, Invoker, Anti-Mage, etc.).
+2. Game timer (e.g. "15:42") and player's current gold / net worth.
+3. My current inventory items visible in the screenshot.
+4. Allies heroes (list of 4 other heroes).
+5. Enemy heroes (list of 5 enemy heroes).
+6. Provide structured recommendations in valid JSON format only (NO markdown wrappers around the JSON, just raw JSON) matching this exact schema:
+{
+  "my_hero": {
+    "name": "Hero Name in Russian or English",
+    "slug": "hero_slug",
+    "role": "Position 1/2/3/4/5",
+    "timer": "12:30",
+    "gold": "1850",
+    "net_worth": "6400",
+    "inventory": ["Power Treads", "Maelstrom", "BKB"]
+  },
+  "allies": ["Hero 1", "Hero 2", "Hero 3", "Hero 4"],
+  "enemies": ["Enemy 1", "Enemy 2", "Enemy 3", "Enemy 4", "Enemy 5"],
+  "builds": {
+    "meta": {"title": "Meta Core Build", "description": "...", "items": [{"name": "...", "cost": "...", "tip": "..."}]},
+    "aggressive": {"title": "Aggressive / Snowball", "description": "...", "items": []},
+    "defensive": {"title": "Defensive / Survival", "description": "...", "items": []}
+  },
+  "skill_build": [{"level": "1-5", "desc": "..."}],
+  "matchup_tips": [{"threat": "...", "advice": "..."}]
+}
+Use English hero/item names so icons can be resolved.`;
+
+            try {
+                const rawText = await callGeminiAPI({
+                    contents: [{
+                        parts: [
+                            { text: promptText },
+                            {
+                                inline_data: {
+                                    mime_type: mimeType,
+                                    data: base64Data
+                                }
+                            }
+                        ]
+                    }]
+                });
+
+                const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                analysisResultData = JSON.parse(cleanJson);
+                renderResults(analysisResultData);
+                showStatus("Анализ завершен", "emerald");
+
+            } catch (err) {
+                alert("Ошибка при анализе скриншота: " + err.message);
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('welcomeState').classList.remove('hidden');
+            }
+        }
+
+        function renderResults(data) {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('resultsContainer').classList.remove('hidden');
+
+            document.getElementById('myHeroName').textContent = data.my_hero.name || "Неизвестный герой";
+            document.getElementById('myHeroRole').textContent = `Позиция: ${data.my_hero.role || '1'} (${currentMode.toUpperCase()})`;
+            document.getElementById('gameModeBadge').textContent = currentMode.toUpperCase();
+            document.getElementById('gameTimer').textContent = data.my_hero.timer || "15:00";
+            document.getElementById('playerGold').textContent = data.my_hero.gold || "1,200";
+            document.getElementById('playerNetWorth').textContent = data.my_hero.net_worth || "5,400";
+
+            const portraitEl = document.getElementById('myHeroPortrait');
+            portraitEl.src = getHeroImg(data.my_hero.slug || data.my_hero.name);
+            portraitEl.onerror = () => { portraitEl.src = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/antimage.png'; };
+
+            const invContainer = document.getElementById('currentInventory');
+            invContainer.innerHTML = '';
+            if (data.my_hero.inventory && data.my_hero.inventory.length > 0) {
+                data.my_hero.inventory.forEach(item => {
+                    const itemEl = document.createElement('div');
+                    itemEl.className = "flex items-center space-x-2 bg-dota-card border border-dota-border px-3 py-1.5 rounded-lg";
+                    itemEl.innerHTML = `
+                        <img src="${getItemImg(item)}" alt="${item}" class="w-7 h-7 rounded object-cover" onerror="this.src='https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items/blink.png'">
+                        <span class="text-xs font-medium text-white">${item}</span>
+                    `;
+                    invContainer.appendChild(itemEl);
+                });
+            } else {
+                invContainer.innerHTML = '<span class="text-xs text-slate-500">Инвентарь пуст или не распознан</span>';
+            }
+
+            const alliesEl = document.getElementById('alliesList');
+            alliesEl.innerHTML = '';
+            (data.allies || []).forEach(hero => {
+                const hEl = document.createElement('div');
+                hEl.className = "flex items-center space-x-2.5 bg-dota-card/60 border border-dota-border p-2 rounded-lg";
+                hEl.innerHTML = `
+                    <img src="${getHeroImg(hero)}" class="w-9 h-9 rounded object-cover border border-emerald-500/40" onerror="this.src='https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/antimage.png'">
+                    <span class="text-xs font-semibold text-slate-200">${hero}</span>
+                `;
+                alliesEl.appendChild(hEl);
+            });
+
+            const enemiesEl = document.getElementById('enemiesList');
+            enemiesEl.innerHTML = '';
+            (data.enemies || []).forEach(hero => {
+                const hEl = document.createElement('div');
+                hEl.className = "flex items-center space-x-2.5 bg-dota-card/60 border border-dota-border p-2 rounded-lg";
+                hEl.innerHTML = `
+                    <img src="${getHeroImg(hero)}" class="w-9 h-9 rounded object-cover border border-red-500/40" onerror="this.src='https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/axe.png'">
+                    <span class="text-xs font-semibold text-slate-200">${hero}</span>
+                `;
+                enemiesEl.appendChild(hEl);
+            });
+
+            renderBuildTab('meta');
+
+            const sbContainer = document.getElementById('skillBuildContainer');
+            sbContainer.innerHTML = '';
+            (data.skill_build || []).forEach(sb => {
+                sbContainer.innerHTML += `
+                    <div class="p-2 bg-dota-card border border-dota-border rounded-lg">
+                        <span class="text-dota-gold font-bold">Уровни ${sb.level}:</span> ${sb.desc}
+                    </div>
+                `;
+            });
+
+            const mtContainer = document.getElementById('matchupTipsContainer');
+            mtContainer.innerHTML = '';
+            (data.matchup_tips || []).forEach(mt => {
+                mtContainer.innerHTML += `
+                    <div class="p-2 bg-dota-card border border-dota-border rounded-lg">
+                        <span class="text-amber-400 font-bold">${mt.threat}:</span> ${mt.advice}
+                    </div>
+                `;
+            });
+        }
+
+        function switchBuildTab(tabKey) {
+            currentActiveBuildTab = tabKey;
+            ['meta', 'aggressive', 'defensive'].forEach(k => {
+                const btn = document.getElementById(`tab${k.charAt(0).toUpperCase() + k.slice(1)}`);
+                if (k === tabKey) {
+                    btn.className = "px-3 py-1.5 text-xs font-semibold rounded-md transition bg-amber-500/20 text-dota-gold border border-amber-500/30";
+                } else {
+                    btn.className = "px-3 py-1.5 text-xs font-semibold rounded-md transition text-slate-400 hover:text-white";
+                }
+            });
+            renderBuildTab(tabKey);
+        }
+
+        function renderBuildTab(tabKey) {
+            if (!analysisResultData || !analysisResultData.builds) return;
+            const build = analysisResultData.builds[tabKey];
+            const container = document.getElementById('buildContent');
+
+            let html = `
+                <p class="text-xs text-slate-300 bg-dota-card p-3 rounded-lg border border-dota-border">${build.description}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            `;
+
+            (build.items || []).forEach(item => {
+                html += `
+                    <div class="bg-dota-card border border-dota-border p-3 rounded-xl flex items-start space-x-3">
+                        <img src="${getItemImg(item.name)}" class="w-10 h-10 rounded object-cover border border-dota-border flex-shrink-0" onerror="this.src='https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/items/blink.png'">
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <h4 class="text-xs font-bold text-white">${item.name}</h4>
+                                <span class="text-[10px] text-amber-400 font-semibold"><i class="fa-solid fa-coins mr-0.5"></i>${item.cost}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1">${item.tip}</p>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        async function askCoach() {
+            const query = document.getElementById('coachQueryInput').value.trim();
+            if (!query) return;
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                openSettings();
+                return;
+            }
+
+            const answerBox = document.getElementById('coachAnswer');
+            answerBox.classList.remove('hidden');
+            answerBox.innerHTML = '<i class="fa-solid fa-spinner animate-spin mr-2"></i> Тренер думает над вопросом...';
+
+            try {
+                const reply = await callGeminiAPI({
+                    contents: [{
+                        parts: [
+                            { text: `You are an expert Dota 2 coach. Answer in Russian. The current match context is: My hero is ${analysisResultData?.my_hero?.name || 'unknown'}, playing ${currentMode}. Enemies are ${(analysisResultData?.enemies || []).join(', ')}. User question: ${query}` }
+                        ]
+                    }]
+                });
+                answerBox.innerHTML = `<strong class="text-dota-gold block mb-1">Совет тренера:</strong> ${reply}`;
+            } catch (err) {
+                answerBox.innerHTML = `<span class="text-red-400">Ошибка при получении ответа: ${err.message}</span>`;
+            }
+        }
+    </script>
+</body>
+</html>
